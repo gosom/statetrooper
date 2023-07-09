@@ -200,7 +200,7 @@ func (fsm *FSM[T]) GenerateMermaidRulesDiagram() (string, error) {
 	diagram := "graph LR;\n"
 
 	// Nodes for each state
-	var nodes []string
+	nodes := make([]string, 0, len(fsm.ruleset))
 
 	for state := range fsm.ruleset {
 		nodes = append(nodes, toString(state))
@@ -258,7 +258,7 @@ func (fsm *FSM[T]) GenerateMermaidTransitionHistoryDiagram() (string, error) {
 		uniqueStates[toState] = true
 	}
 
-	var nodes []string
+	nodes := make([]string, 0, len(uniqueStates))
 
 	for state := range uniqueStates {
 		nodes = append(nodes, fmt.Sprintf("%s;\n", toString(state)))
@@ -269,7 +269,7 @@ func (fsm *FSM[T]) GenerateMermaidTransitionHistoryDiagram() (string, error) {
 
 	// Add edges with transition order numbers
 
-	var edges []string
+	edges := make([]string, 0, len(fsm.transitions))
 
 	for i, transition := range fsm.transitions {
 		fromState := transition.FromState

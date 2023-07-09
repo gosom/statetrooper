@@ -145,7 +145,7 @@ func Test_transitionTracking(t *testing.T) {
 	}
 
 	// Get the transition timestamps in order
-	var timestamps []time.Time
+	timestamps := make([]time.Time, 0, len(fsm.transitions))
 	for _, t := range fsm.transitions {
 		timestamps = append(timestamps, t.Timestamp)
 	}
@@ -371,7 +371,7 @@ func Test_unmarshalJSON(t *testing.T) {
 
 func Test_withCustomTimeProvider(t *testing.T) {
 	var (
-		staticTime time.Time = time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)
+		staticTime = time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)
 	)
 	fsm := NewFSM[CustomStateEnum](
 		CustomStateEnumA,
