@@ -583,3 +583,17 @@ func Benchmark_unmarshalJSON(b *testing.B) {
 		}
 	}
 }
+
+func Benchmark_String(b *testing.B) {
+	fsm := NewFSM[CustomStateEnum](CustomStateEnumA, 10)
+	fsm.AddRule(CustomStateEnumA, CustomStateEnumB)
+	fsm.AddRule(CustomStateEnumB, CustomStateEnumA)
+
+	fsm.Transition(CustomStateEnumB, nil)
+	fsm.Transition(CustomStateEnumA, nil)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = fsm.String()
+	}
+}

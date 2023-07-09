@@ -342,19 +342,21 @@ func (fsm *FSM[T]) String() string {
 	fsm.mu.Lock()
 	defer fsm.mu.Unlock()
 
-	currentState := fmt.Sprintf("Current State: %v\n", fsm.currentState)
+	sb := strings.Builder{}
 
-	rules := "Rules:\n"
+	sb.WriteString(fmt.Sprintf("Current State: %v\n", fsm.currentState))
+
+	sb.WriteString("Rules:\n")
 	for fromState, toStates := range fsm.ruleset {
-		rules += fmt.Sprintf("\t%v -> %v\n", fromState, toStates)
+		sb.WriteString(fmt.Sprintf("\t%v -> %v\n", fromState, toStates))
 	}
 
-	transitions := "Transitions:\n"
+	sb.WriteString("Transitions:\n")
 	for _, transition := range fsm.transitions {
-		transitions += fmt.Sprintf("\t%v\n", transition)
+		sb.WriteString(fmt.Sprintf("\t%v\n", transition))
 	}
 
-	return currentState + rules + transitions
+	return sb.String()
 }
 
 func (fsm *FSM[T]) setDefaults() {
