@@ -130,27 +130,24 @@ func (fsm *FSM[T]) Transition(targetState T, metadata map[string]string) (T, err
 		}
 	}
 
-	if fsm.maxHistory == 0 {
-		fsm.currentState = targetState
-		return fsm.currentState, nil
-	}
-
 	// Track the transition
-	// Check if we need to remove the oldest transition
-	if len(fsm.transitions) >= fsm.maxHistory {
-		fsm.transitions = fsm.transitions[1:]
+	if fsm.maxHistory > 0 {
+		// Check if we need to remove the oldest transition
+		if len(fsm.transitions) >= fsm.maxHistory {
+			fsm.transitions = fsm.transitions[1:]
+		}
+
+		tn := fsm.timeProvider()
+
+		fsm.transitions = append(
+			fsm.transitions,
+			Transition[T]{
+				FromState: fsm.currentState,
+				ToState:   targetState,
+				Timestamp: tn,
+				Metadata:  metadata,
+			})
 	}
-
-	tn := fsm.timeProvider()
-
-	fsm.transitions = append(
-		fsm.transitions,
-		Transition[T]{
-			FromState: fsm.currentState,
-			ToState:   targetState,
-			Timestamp: tn,
-			Metadata:  metadata,
-		})
 
 	fsm.currentState = targetState
 
@@ -324,15 +321,11 @@ func (fsm *FSM[T]) UnmarshalJSON(data []byte) error {
 
 	fsm.currentState = importData.CurrentState
 
-	var s int
-
 	if len(importData.Transitions) < fsm.maxHistory {
-		s = len(importData.Transitions)
+		fsm.transitions = importData.Transitions
 	} else {
-		s = fsm.maxHistory
+		fsm.transitions = importData.Transitions[:fsm.maxHistory]
 	}
-
-	fsm.transitions = importData.Transitions[:s]
 
 	return nil
 }
