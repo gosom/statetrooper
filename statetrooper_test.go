@@ -147,7 +147,7 @@ func Test_transitionTracking(t *testing.T) {
 	// Get the transition timestamps in order
 	var timestamps []time.Time
 	for _, t := range fsm.transitions {
-		timestamps = append(timestamps, *t.Timestamp)
+		timestamps = append(timestamps, t.Timestamp)
 	}
 	sort.Slice(timestamps, func(i, j int) bool {
 		return timestamps[i].Before(timestamps[j])
@@ -361,11 +361,56 @@ func Test_unmarshalJSON(t *testing.T) {
 	expectedTransition := Transition[string]{
 		FromState: "stateA",
 		ToState:   "stateB",
-		Timestamp: &tp,
+		Timestamp: tp,
 		Metadata:  map[string]string{"reason": "Transition from stateA to stateB"},
 	}
 	if !reflect.DeepEqual(fsm.transitions, []Transition[string]{expectedTransition}) {
 		t.Errorf("Unexpected transitions. Expected: %v, Got: %v", []Transition[string]{expectedTransition}, fsm.transitions)
+	}
+}
+
+func Test_withCustomTimeProvider(t *testing.T) {
+	var (
+		staticTime time.Time = time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)
+	)
+	fsm := NewFSM[CustomStateEnum](
+		CustomStateEnumA,
+		10,
+		WithTimeProvider[CustomStateEnum](func() time.Time {
+			return staticTime
+		}),
+	)
+
+	fsm.AddRule(CustomStateEnumA, CustomStateEnumB)
+	fsm.AddRule(CustomStateEnumB, CustomStateEnumC)
+
+	metadata1 := map[string]string{
+		"requested_by":  "Mahmoud",
+		"logic_version": "1.0",
+	}
+
+	// Perform the first transition
+	_, err := fsm.Transition(CustomStateEnumB, metadata1)
+	if err != nil {
+		t.Errorf("Transition(%v, %v) returned an error: %v", fsm.currentState, CustomStateEnumB, err)
+	}
+
+	_, err = fsm.Transition(CustomStateEnumC, metadata1)
+	if err != nil {
+		t.Errorf("Transition(%v, %v) returned an error: %v", fsm.currentState, CustomStateEnumC, err)
+	}
+
+	transitions := fsm.Transitions()
+
+	if len(transitions) != 2 {
+		t.Errorf("Transitions() returned an unexpected number of transitions: %v", len(transitions))
+	}
+
+	// both transitions should have the same time since we are using a static time provider
+	for i := range transitions {
+		if transitions[i].Timestamp.Equal(staticTime) == false {
+			t.Errorf("Transitions() returned an unexpected timestamp: %v", transitions[i].Timestamp)
+		}
 	}
 }
 
@@ -447,6 +492,52 @@ func Benchmark_accessTransitions(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = fsm.Transitions()
 	}
+}
+
+func Benchmark_accessTransitionsConcurrently(b *testing.B) {
+	fsm := NewFSM[CustomStateEnum](CustomStateEnumA, 10)
+	fsm.AddRule(CustomStateEnumA, CustomStateEnumB)
+	fsm.AddRule(CustomStateEnumB, CustomStateEnumA)
+
+	fsm.Transition(CustomStateEnumB, nil)
+
+	wg := sync.WaitGroup{}
+	wg.Add(b.N)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		go func() {
+			defer wg.Done()
+
+			_ = fsm.Transitions()
+		}()
+	}
+
+	wg.Wait()
+}
+
+func Benchmark_canTransitionConcurrently(b *testing.B) {
+	fsm := NewFSM[CustomStateEnum](CustomStateEnumA, 10)
+	fsm.AddRule(CustomStateEnumA, CustomStateEnumB)
+	fsm.AddRule(CustomStateEnumB, CustomStateEnumA)
+
+	fsm.Transition(CustomStateEnumB, nil)
+
+	wg := sync.WaitGroup{}
+	wg.Add(b.N)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		go func() {
+			defer wg.Done()
+
+			_ = fsm.CanTransition(CustomStateEnumA)
+		}()
+	}
+
+	wg.Wait()
 }
 
 func Benchmark_marshalJSON(b *testing.B) {

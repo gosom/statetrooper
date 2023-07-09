@@ -39,9 +39,12 @@ import (
 type Transition[T comparable] struct {
 	FromState T                 `json:"from_state"`
 	ToState   T                 `json:"to_state"`
-	Timestamp *time.Time        `json:"timestamp"`
+	Timestamp time.Time         `json:"timestamp"`
 	Metadata  map[string]string `json:"metadata"`
 }
+
+// FSMOption is a function that sets an option on the FSM
+type FSMOption[T comparable] func(*FSM[T])
 
 // FSM represents the finite state machine for managing states
 type FSM[T comparable] struct {
@@ -50,14 +53,35 @@ type FSM[T comparable] struct {
 	ruleset      map[T][]T
 	mu           sync.Mutex
 	maxHistory   int
+
+	// timeProvider is used to provide the current time for transitions DEFAULT: time.Now
+	timeProvider func() time.Time
 }
 
 // NewFSM creates a new instance of FSM with predefined transitions
-func NewFSM[T comparable](initialState T, maxHistory int) *FSM[T] {
-	return &FSM[T]{
+func NewFSM[T comparable](initialState T, maxHistory int, opts ...FSMOption[T]) *FSM[T] {
+	fsm := FSM[T]{
 		currentState: initialState,
 		ruleset:      make(map[T][]T),
 		maxHistory:   maxHistory,
+	}
+
+	for _, opt := range opts {
+		opt(&fsm)
+	}
+
+	fsm.setDefaults()
+
+	return &fsm
+}
+
+// WithTimeProvider sets the time provider for the FSM
+// The time provider is used to provide the current time for transitions
+// DEFAULT: time.Now
+// This is useful for testing or when you want to set a time with a specific timezone
+func WithTimeProvider[T comparable](provider func() time.Time) FSMOption[T] {
+	return func(fsm *FSM[T]) {
+		fsm.timeProvider = provider
 	}
 }
 
@@ -117,13 +141,14 @@ func (fsm *FSM[T]) Transition(targetState T, metadata map[string]string) (T, err
 		fsm.transitions = fsm.transitions[1:]
 	}
 
-	tn := time.Now()
+	tn := fsm.timeProvider()
+
 	fsm.transitions = append(
 		fsm.transitions,
 		Transition[T]{
 			FromState: fsm.currentState,
 			ToState:   targetState,
-			Timestamp: &tn,
+			Timestamp: tn,
 			Metadata:  metadata,
 		})
 
@@ -330,6 +355,12 @@ func (fsm *FSM[T]) String() string {
 	}
 
 	return currentState + rules + transitions
+}
+
+func (fsm *FSM[T]) setDefaults() {
+	if fsm.timeProvider == nil {
+		fsm.timeProvider = time.Now
+	}
 }
 
 // String returns a string representation of the Transition
